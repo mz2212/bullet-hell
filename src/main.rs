@@ -16,6 +16,12 @@ const PIXEL_MUL: u32 = 4; // The pixel multiplier, basically the scale. The canv
 type Location = (i32, i32);
 type Size = (u32, u32);
 
+struct Star {
+	loc: Location,
+	size: Size,
+	vel: Location,
+}
+
 struct Player {
 	loc: Location,
 	size: Size, // The size of the sprite. It could feasibly be changed to strech the sprite.
@@ -90,9 +96,11 @@ fn main() {
 		shoot_timer: 0,
 	};
 	
+	let mut stars: Vec<Star> = Vec::new();
 	let mut projectiles: Vec<Projectile> = Vec::new();
 	let mut enemies: Vec<Enemy> = Vec::new();
 	let mut spawn_timer = 40;
+	let mut star_timer = true;
 	let mut score = 0;
 	let mut sdl_quit = false;
 	
@@ -147,9 +155,26 @@ fn main() {
 			spawn_timer = rng.gen_range(20, 180);
 		} else { spawn_timer -= 1; }
 
+		if star_timer == true {
+			stars.push(Star {
+				loc: (rng.gen_range(0, width) as i32, 0),
+				size: (1, 1),
+				vel: (0, rng.gen_range(2, 5)),
+			});
+			star_timer = false;
+		} else { star_timer = true; }
 
-		
 		// update logic
+		let mut s = 0;
+		while s < stars.len() {
+			stars[s].loc.0 += stars[s].vel.0;
+			stars[s].loc.1 += stars[s].vel.1;
+			if stars[s].loc.1 > height as i32 {
+				stars.remove(s);
+			}
+			s += 1;
+		}
+
 		let mut e = 0;
 		while e < enemies.len() {
 			enemies[e].loc.0 += enemies[e].vel.0;
@@ -203,6 +228,12 @@ fn main() {
 		// drawing logic
 		canvas.set_draw_color(Color::BLACK);
 		canvas.clear();
+
+		canvas.set_draw_color(Color::WHITE);
+		for s in &stars {
+			let star_rect = Rect::new(s.loc.0, s.loc.1, s.size.0, s.size.1);
+			canvas.draw_rect(star_rect).unwrap();
+		}
 
 		for p in &projectiles {
 			let projectile_rect = Rect::new(p.loc.0, p.loc.1, p.size.0, p.size.1);
