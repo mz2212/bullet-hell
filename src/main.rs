@@ -7,6 +7,7 @@ use sdl2::keyboard::Scancode;
 use sdl2::image::LoadTexture;
 use sdl2::pixels::Color;
 use sdl2::ttf;
+use std::path::PathBuf;
 
 use rand::{thread_rng, Rng};
 
@@ -50,6 +51,8 @@ fn main() {
 	let sdl_context = sdl2::init().unwrap();
 	let mut event_pump = sdl_context.event_pump().unwrap();
 	let video_subsystem = sdl_context.video().unwrap();
+	let mut path = PathBuf::new();
+	path.push(std::env::current_exe().unwrap());
 
 	let window = video_subsystem.window("Bullet Hell", 1280, 720)
 		.position_centered()
@@ -63,15 +66,21 @@ fn main() {
 	height /= PIXEL_MUL;
 	canvas.set_logical_size(width, height).unwrap();
 	let ttf_handler = ttf::init().unwrap();
-	let font = ttf_handler.load_font("HABESHAPIXELS.ttf", 14).unwrap();
+	path.set_file_name("HABESHAPIXELS.ttf");
+	let font = ttf_handler.load_font(path.as_path(), 14).unwrap();
 	let texture_creator = canvas.texture_creator();
 	
 	// Thanks to: https://gigi.nullneuron.net/gigilabs/loading-images-in-sdl2-with-sdl_image/
 	// for the general idea of how to load a texture. sdl2 crate docs helped tons too
-	let player_image = texture_creator.load_texture("player.png").unwrap();
-	let enemy_image = texture_creator.load_texture("enemy.png").unwrap();
-	let projectile_image = texture_creator.load_texture("projectile.png").unwrap();
-	let eprojectile_image = texture_creator.load_texture("enemy_projectile.png").unwrap();
+	path.set_file_name("player.png");
+	let player_image = texture_creator.load_texture(path.as_path()).unwrap();
+	path.set_file_name("enemy.png");
+	let enemy_image = texture_creator.load_texture(path.as_path()).unwrap();
+	path.set_file_name("projectile.png");
+	let projectile_image = texture_creator.load_texture(path.as_path()).unwrap();
+	path.set_file_name("enemy_projectile.png");
+	let eprojectile_image = texture_creator.load_texture(path.as_path()).unwrap();
+	drop(path);
 	
 	let mut rng = thread_rng();
 	
