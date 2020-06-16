@@ -45,10 +45,24 @@ struct Projectile {
 	p_type: ProjectileT,
 }
 
+#[derive(Debug, Clone)]
+struct Text {
+	loc: Location,
+	text: String,
+	color: Color,
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum ProjectileT {
 	Player,
 	Enemy,
+}
+
+enum GameState {
+	Title,
+	Setup,
+	Playing,
+	Lose,
 }
 
 //TODO: Add the various screens (lose, start), Make it so the player can lose.
@@ -95,6 +109,32 @@ fn main() {
 		size: (24, 12),
 		shoot_timer: 0,
 	};
+
+	let score_text = Text {
+		loc: (4, 4),
+		text: String::from("Score: "),
+		color: Color::WHITE,
+	};
+
+	let play_text = Text {
+		loc: (width as i32/2, height as i32 - 25),
+		text: String::from("Press Space to Play"),
+		color: Color::WHITE,
+	};
+
+	let title_text = Text {
+		loc: (width as i32/2, 10),
+		text: String::from("Bullet Hell"),
+		color: Color::WHITE,
+	};
+
+	let lose_text = Text {
+		loc: (width as i32/2, height as i32 - 25),
+		text: String::from("Press t to return to title"),
+		color: Color::WHITE,
+	};
+
+	let menu_text = [title_text, play_text];
 	
 	let mut stars: Vec<Star> = Vec::new();
 	let mut projectiles: Vec<Projectile> = Vec::new();
@@ -103,6 +143,7 @@ fn main() {
 	let mut star_timer = true;
 	let mut score = 0;
 	let mut sdl_quit = false;
+	let mut game_state = GameState::Title;
 	
 	while !sdl_quit {
 		for event in event_pump.poll_iter() {
@@ -111,150 +152,207 @@ fn main() {
 				_ => {}
 			}
 		}
-
-		let keyboard_state = KeyboardState::new(&event_pump);
-		let mut speed_divisor = 1;
-		if keyboard_state.is_scancode_pressed(Scancode::LShift) {
-			speed_divisor = 2;
-		}
-		if keyboard_state.is_scancode_pressed(Scancode::A) {
-			player.loc.0 -= 2/speed_divisor;
-		}
-		if keyboard_state.is_scancode_pressed(Scancode::D) {
-			player.loc.0 += 2/speed_divisor;
-		}
-		if keyboard_state.is_scancode_pressed(Scancode::W) {
-			player.loc.1 -= 2/speed_divisor;
-		}
-		if keyboard_state.is_scancode_pressed(Scancode::S) {
-			player.loc.1 += 2/speed_divisor;
-		}
-		if keyboard_state.is_scancode_pressed(Scancode::Space) {
-			if player.shoot_timer == 0 {
-				projectiles.push(Projectile {
-					loc: (player.loc.0 + player.size.0 as i32/2 - 4, player.loc.1),
-					size: (8, 11),
-					vel: (0, -3),
-					rot_angle: 0.0,
-					p_type: ProjectileT::Player,
-				});
-				player.shoot_timer = 30;
-			} else {
-				player.shoot_timer -= 1;
-			}
-		}
-
-		if spawn_timer == 0 {
-			enemies.push(Enemy {
-				loc: (rng.gen_range(0, width) as i32, 0),
-				size: (10, 10),
-				vel: (0, 1),
-				rot_angle: 0.0,
-				shoot_timer: 20,
-			});
-			spawn_timer = rng.gen_range(20, 180);
-		} else { spawn_timer -= 1; }
-
-		if star_timer == true {
-			stars.push(Star {
-				loc: (rng.gen_range(0, width) as i32, 0),
-				size: (1, 1),
-				vel: (0, rng.gen_range(2, 5)),
-			});
-			star_timer = false;
-		} else { star_timer = true; }
-
-		// update logic
-		let mut s = 0;
-		while s < stars.len() {
-			stars[s].loc.0 += stars[s].vel.0;
-			stars[s].loc.1 += stars[s].vel.1;
-			if stars[s].loc.1 > height as i32 {
-				stars.remove(s);
-			}
-			s += 1;
-		}
-
-		let mut e = 0;
-		while e < enemies.len() {
-			enemies[e].loc.0 += enemies[e].vel.0;
-			enemies[e].loc.1 += enemies[e].vel.1;
-			if enemies[e].shoot_timer == 0 {
-				projectiles.push(Projectile {
-					loc: (enemies[e].loc.0 + enemies[e].size.0 as i32/2-2, enemies[e].loc.1),
-					size: (5, 8),
-					vel: (0, 3),
-					rot_angle: 180.0,
-					p_type: ProjectileT::Enemy,
-				});
-				enemies[e].shoot_timer = 60;
-			} else { enemies[e].shoot_timer -= 1; }
-			if enemies[e].loc.1 > height as i32 {
-				enemies.remove(e);
-			}
-			e += 1;
-		}
-
-		let mut p = 0;
-		while p < projectiles.len() {
-			projectiles[p].loc.0 += projectiles[p].vel.0;
-			projectiles[p].loc.1 += projectiles[p].vel.1;
-			let mut to_be_removed = false;
-			e = 0;
-			
-			if (projectiles[p].loc.1 + projectiles[p].size.1 as i32) < 0 || projectiles[p].loc.1 > height as i32 {
-				to_be_removed = true;
-			}
-
-			while e < enemies.len() {
-				let enemy_rect = Rect::new(enemies[e].loc.0, enemies[e].loc.1, enemies[e].size.0, enemies[e].size.1);
-				let projectile_rect = Rect::new(projectiles[p].loc.0, projectiles[p].loc.1, projectiles[p].size.0, projectiles[p].size.1);
-				if enemy_rect.has_intersection(projectile_rect) && projectiles[p].p_type == ProjectileT::Player {
-					enemies.remove(e);
-					to_be_removed = true;
-					score += 1;
+		match game_state {
+			GameState::Title => {
+				let keyboard_state = KeyboardState::new(&event_pump);
+				if keyboard_state.is_scancode_pressed(Scancode::Space) {
+					game_state = GameState::Setup;
 				}
-				e += 1;
+
+				canvas.set_draw_color(Color::BLACK);
+				canvas.clear();
+				for text in menu_text.iter() {
+					let pre_texture = font.render(text.text.as_str()).solid(text.color).unwrap();
+					let texture = pre_texture.as_texture(&texture_creator).unwrap();
+					let text_rect = Rect::new(text.loc.0-texture.query().width as i32/2, text.loc.1, texture.query().width, texture.query().height);
+					canvas.copy(&texture, None, text_rect).unwrap();
+				}
+				canvas.present();
+			},
+			GameState::Setup => {
+				stars = Vec::new();
+				projectiles = Vec::new();
+				enemies = Vec::new();
+				spawn_timer = 40;
+				star_timer = true;
+				score = 0;
+				player = Player {
+					loc: (width as i32/2-12, height as i32 - 12),
+					size: (24, 12),
+					shoot_timer: 0,
+				};
+				game_state = GameState::Playing;
+			},
+			GameState::Playing => {
+				let keyboard_state = KeyboardState::new(&event_pump);
+				let mut speed_divisor = 1;
+				if keyboard_state.is_scancode_pressed(Scancode::LShift) {
+					speed_divisor = 2;
+				}
+				if keyboard_state.is_scancode_pressed(Scancode::A) {
+					player.loc.0 -= 2/speed_divisor;
+				}
+				if keyboard_state.is_scancode_pressed(Scancode::D) {
+					player.loc.0 += 2/speed_divisor;
+				}
+				if keyboard_state.is_scancode_pressed(Scancode::W) {
+					player.loc.1 -= 2/speed_divisor;
+				}
+				if keyboard_state.is_scancode_pressed(Scancode::S) {
+					player.loc.1 += 2/speed_divisor;
+				}
+				if keyboard_state.is_scancode_pressed(Scancode::Space) {
+					if player.shoot_timer == 0 {
+						projectiles.push(Projectile {
+							loc: (player.loc.0 + player.size.0 as i32/2 - 4, player.loc.1),
+							size: (8, 11),
+							vel: (0, -3),
+							rot_angle: 0.0,
+							p_type: ProjectileT::Player,
+						});
+						player.shoot_timer = 30;
+					} else {
+						player.shoot_timer -= 1;
+					}
+				}
+
+				if spawn_timer == 0 {
+					enemies.push(Enemy {
+						loc: (rng.gen_range(0, width) as i32, 0),
+						size: (10, 10),
+						vel: (0, 1),
+						rot_angle: 0.0,
+						shoot_timer: 20,
+					});
+					spawn_timer = rng.gen_range(20, 180);
+				} else { spawn_timer -= 1; }
+
+				if star_timer == true {
+					stars.push(Star {
+						loc: (rng.gen_range(0, width) as i32, 0),
+						size: (1, 1),
+						vel: (0, rng.gen_range(2, 5)),
+					});
+					star_timer = false;
+				} else { star_timer = true; }
+
+				// update logic
+				let mut s = 0;
+				while s < stars.len() {
+					stars[s].loc.0 += stars[s].vel.0;
+					stars[s].loc.1 += stars[s].vel.1;
+					if stars[s].loc.1 > height as i32 {
+						stars.remove(s);
+					}
+					s += 1;
+				}
+
+				let mut e = 0;
+				while e < enemies.len() {
+					enemies[e].loc.0 += enemies[e].vel.0;
+					enemies[e].loc.1 += enemies[e].vel.1;
+					if enemies[e].shoot_timer == 0 {
+						projectiles.push(Projectile {
+							loc: (enemies[e].loc.0 + enemies[e].size.0 as i32/2-2, enemies[e].loc.1),
+							size: (5, 8),
+							vel: (0, 3),
+							rot_angle: 180.0,
+							p_type: ProjectileT::Enemy,
+						});
+						enemies[e].shoot_timer = 60;
+					} else { enemies[e].shoot_timer -= 1; }
+					if enemies[e].loc.1 > height as i32 {
+						enemies.remove(e);
+					}
+					e += 1;
+				}
+
+				let mut p = 0;
+				while p < projectiles.len() {
+					projectiles[p].loc.0 += projectiles[p].vel.0;
+					projectiles[p].loc.1 += projectiles[p].vel.1;
+					let mut to_be_removed = false;
+					e = 0;
+
+					if (projectiles[p].loc.1 + projectiles[p].size.1 as i32) < 0 || projectiles[p].loc.1 > height as i32 {
+						to_be_removed = true;
+					}
+
+					let projectile_rect = Rect::new(projectiles[p].loc.0, projectiles[p].loc.1, projectiles[p].size.0, projectiles[p].size.1);
+
+					while e < enemies.len() {
+						let enemy_rect = Rect::new(enemies[e].loc.0, enemies[e].loc.1, enemies[e].size.0, enemies[e].size.1);
+						if enemy_rect.has_intersection(projectile_rect) && projectiles[p].p_type == ProjectileT::Player {
+							enemies.remove(e);
+							to_be_removed = true;
+							score += 1;
+						}
+						e += 1;
+					}
+
+					let player_rect = Rect::new(player.loc.0, player.loc.1, player.size.0, player.size.1);
+					if player_rect.has_intersection(projectile_rect) && projectiles[p].p_type == ProjectileT::Enemy {
+						game_state = GameState::Lose;
+					}
+
+					if to_be_removed {
+						projectiles.remove(p);
+					}
+					p += 1;
+				}
+
+
+
+				// drawing logic
+				canvas.set_draw_color(Color::BLACK);
+				canvas.clear();
+
+				canvas.set_draw_color(Color::WHITE);
+				for s in &stars {
+					let star_rect = Rect::new(s.loc.0, s.loc.1, s.size.0, s.size.1);
+					canvas.draw_rect(star_rect).unwrap();
+				}
+
+				for p in &projectiles {
+					let projectile_rect = Rect::new(p.loc.0, p.loc.1, p.size.0, p.size.1);
+					match p.p_type {
+						ProjectileT::Player => canvas.copy_ex(&projectile_image, None, projectile_rect, p.rot_angle, None, false, false).unwrap(),
+						ProjectileT::Enemy => canvas.copy_ex(&eprojectile_image, None, projectile_rect, p.rot_angle, None, false, false).unwrap()
+					}
+				}
+
+				for e in &enemies {
+					let enemy_rect = Rect::new(e.loc.0, e.loc.1, e.size.0, e.size.1);
+					canvas.copy_ex(&enemy_image, None, enemy_rect, e.rot_angle, None, false, false).unwrap();
+				}
+				// Set up the rectangle target for the texture
+				let player_rect = Rect::new(player.loc.0, player.loc.1, player.size.0, player.size.1);
+				canvas.copy(&player_image, None, player_rect).unwrap();
+
+				let text = font.render(format!("{} {}", score_text.text, score).as_str()).solid(score_text.color).unwrap();
+				let text_texture = text.as_texture(&texture_creator).unwrap();
+				let text_rect = Rect::new(score_text.loc.0, score_text.loc.1, text_texture.query().width, text_texture.query().height);
+				canvas.copy(&text_texture, None, text_rect).unwrap();
+				canvas.present();
+			},
+			GameState::Lose => {
+				let keyboard_state = KeyboardState::new(&event_pump);
+				if keyboard_state.is_scancode_pressed(Scancode::T) {
+					game_state = GameState::Title;
+				}
+
+				canvas.set_draw_color(Color::BLACK);
+				canvas.clear();
+				let text = font.render(format!("{} {}", score_text.text, score).as_str()).solid(score_text.color).unwrap();
+				let text_texture = text.as_texture(&texture_creator).unwrap();
+				let text_rect = Rect::new(menu_text[0].loc.0-text_texture.query().width as i32/2, menu_text[0].loc.1, text_texture.query().width, text_texture.query().height);
+				canvas.copy(&text_texture, None, text_rect).unwrap();
+				let text = font.render(lose_text.text.as_str()).solid(lose_text.color).unwrap();
+				let text_texture = text.as_texture(&texture_creator).unwrap();
+				let text_rect = Rect::new(lose_text.loc.0-text_texture.query().width as i32/2, lose_text.loc.1, text_texture.query().width, text_texture.query().height);
+				canvas.copy(&text_texture, None, text_rect).unwrap();
+				canvas.present();
 			}
-
-			if to_be_removed {
-				projectiles.remove(p);
-			}
-			p += 1;
 		}
-		
-		
-
-		// drawing logic
-		canvas.set_draw_color(Color::BLACK);
-		canvas.clear();
-
-		canvas.set_draw_color(Color::WHITE);
-		for s in &stars {
-			let star_rect = Rect::new(s.loc.0, s.loc.1, s.size.0, s.size.1);
-			canvas.draw_rect(star_rect).unwrap();
-		}
-
-		for p in &projectiles {
-			let projectile_rect = Rect::new(p.loc.0, p.loc.1, p.size.0, p.size.1);
-			match p.p_type {
-				ProjectileT::Player => canvas.copy_ex(&projectile_image, None, projectile_rect, p.rot_angle, None, false, false).unwrap(),
-				ProjectileT::Enemy => canvas.copy_ex(&eprojectile_image, None, projectile_rect, p.rot_angle, None, false, false).unwrap()
-			}
-		}
-
-		for e in &enemies {
-			let enemy_rect = Rect::new(e.loc.0, e.loc.1, e.size.0, e.size.1);
-			canvas.copy_ex(&enemy_image, None, enemy_rect, e.rot_angle, None, false, false).unwrap();
-		}
-		// Set up the rectangle target for the texture
-		let player_rect = Rect::new(player.loc.0, player.loc.1, player.size.0, player.size.1);
-		canvas.copy(&player_image, None, player_rect).unwrap();
-
-		let text = font.render(format!("Score: {}", score).as_str()).solid(Color::WHITE).unwrap();
-		let text_texture = text.as_texture(&texture_creator).unwrap();
-		let text_rect = Rect::new(4, 4, text_texture.query().width, text_texture.query().height);
-		canvas.copy(&text_texture, None, text_rect).unwrap();
-		canvas.present();
 	}
 }
